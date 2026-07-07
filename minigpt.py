@@ -13,6 +13,7 @@ class GPTconfig:
 
 config = GPTconfig()
 
+#input Stage
 class InputStage(nn.Module):
     def __init__(self,config):
         super().__init__()
@@ -25,7 +26,8 @@ class InputStage(nn.Module):
         pos = self.wpe(positions)
         x = tok + pos
         return x
-    
+
+#Attention Mechanism
 class Attention(nn.Module):
     def __init__(self,config):
      super().__init__()
@@ -61,11 +63,6 @@ class Attention(nn.Module):
     
 
 
-config = GPTconfig()
-model = Attention(config)
-x = torch.randn(5, 768)
-score = model(x)
-print(score.shape)
 
       
 
