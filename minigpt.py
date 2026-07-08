@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from torch import nn
 import torch
 import math
+import torch.nn.functional as F
 
 @dataclass
 class GPTconfig:
@@ -59,7 +60,19 @@ class Attention(nn.Module):
       output = self.projection(output)
       return output
        
-       
+class MLP(nn.Module):
+    def __init__(self,config):
+        super().__init__()
+        self.w_up = nn.Linear (config.n_embd, 4 * config.n_embd)
+        self.w_down = nn.Linear(4 * config.n_embd, config.n_embd)
+    def forward(self, x):
+        x = self.w_up(x)
+        x = F.gelu(x, approximate='tanh')
+        output = self.w_down(x)
+        return output
+
+
+
     
 
 
