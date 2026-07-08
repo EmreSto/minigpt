@@ -70,6 +70,19 @@ class MLP(nn.Module):
         x = F.gelu(x, approximate='tanh')
         output = self.w_down(x)
         return output
+    
+class Block(nn.Module):
+    def __init__(self,config):
+        super().__init__()
+        self.attention = Attention(config)
+        self.mlp = MLP(config)
+        self.ln1 = nn.LayerNorm(config.n_embd)
+        self.ln2 = nn.LayerNorm(config.n_embd)
+    def forward(self,x):
+        x = x + self.attention(self.ln1(x))
+        x = x + self.mlp(self.ln2(x))
+        return x
+
 
 
 
