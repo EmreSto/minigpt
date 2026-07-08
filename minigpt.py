@@ -14,20 +14,6 @@ class GPTconfig:
 
 config = GPTconfig()
 
-#input Stage
-class InputStage(nn.Module):
-    def __init__(self,config):
-        super().__init__()
-        self.wte = nn.Embedding(config.vocab_size,config.n_embd)
-        self.wpe = nn.Embedding(config.block_size, config.n_embd)
-    def forward(self, ids):
-        seq_len = ids.size(-1)
-        positions = torch.tensor(range(seq_len))
-        tok =self.wte(ids)
-        pos = self.wpe(positions)
-        x = tok + pos
-        return x
-
 #Attention Mechanism
 class Attention(nn.Module):
     def __init__(self,config):
@@ -59,7 +45,8 @@ class Attention(nn.Module):
       output = output.reshape(seq_len, self.n_embd)
       output = self.projection(output)
       return output
-       
+
+#MLP   
 class MLP(nn.Module):
     def __init__(self,config):
         super().__init__()
@@ -70,7 +57,8 @@ class MLP(nn.Module):
         x = F.gelu(x, approximate='tanh')
         output = self.w_down(x)
         return output
-    
+
+#One transformer Block    
 class Block(nn.Module):
     def __init__(self,config):
         super().__init__()
@@ -82,6 +70,27 @@ class Block(nn.Module):
         x = x + self.attention(self.ln1(x))
         x = x + self.mlp(self.ln2(x))
         return x
+#Model
+class GPT(nn.Module):
+    def __init__(self,config):
+        super().__init__()
+        self.blocks = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
+        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
+        self.wpe = nn.Embedding(config.block_size, config.n_embd)
+        self.ln_f = nn.LayerNorm(config.n_embd)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
+    def forward(self, ids):
+        seq_lens = ids.size(-1)
+        positions = torch.tensor(range(seq_lens))
+        tok = self.wte(ids)
+        pos = self.wpe(positions)
+        x = tok + pos
+        for block in self.blocks:
+            x = block(x)
+        x =  self.ln_f(x)
+        logits = self.lm_head(x)
+        return logits
+
 
 
 
