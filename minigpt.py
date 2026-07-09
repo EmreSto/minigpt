@@ -29,22 +29,23 @@ class Attention(nn.Module):
     def forward(self, x):
       qkv = self.qkv(x)
       q,k,v = qkv.chunk(3, dim=-1)
-      seq_len = x.size(0)
-      q = q.reshape([seq_len, self.n_head, self.headdim])
-      k = k.reshape([seq_len, self.n_head, self.headdim])
-      v = v.reshape([seq_len, self.n_head, self.headdim])
-      q = q.transpose(1,0)
-      k = k.transpose(1,0)
-      v = v.transpose(1,0)
-      score = q @ k.transpose(1,2)
+      batch = x.size(0)
+      seq_len = x.size(1)
+      q = q.reshape([batch, seq_len, self.n_head, self.headdim])
+      k = k.reshape([batch, seq_len, self.n_head, self.headdim])
+      v = v.reshape([batch, seq_len, self.n_head, self.headdim])
+      q = q.transpose(2,1)
+      k = k.transpose(2,1)
+      v = v.transpose(2,1)
+      score = q @ k.transpose(2,3)
       score = score / math.sqrt(self.headdim)
       one_vector = torch.ones(seq_len,seq_len)
       mask_vector = torch.tril(one_vector)
       score = score.masked_fill(mask_vector == 0, float('-inf'))
       score = torch.softmax(score,dim=-1)
       output = score @ v
-      output = output.transpose(0,1)
-      output = output.reshape(seq_len, self.n_embd)
+      output = output.transpose(1,2)
+      output = output.reshape(batch ,seq_len, self.n_embd)
       output = self.projection(output)
       return output
 
@@ -117,15 +118,11 @@ with torch.no_grad():
             my_sd[my_name].copy_(hf_tensor.t())
         else:
             my_sd[my_name].copy_(hf_tensor)
-ids = torch.tensor([15496, 11, 314, 716])
+ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0)
 mine = model(ids)
-theirs = hf(ids.unsqueeze(0)).logits.squeeze(0)
+theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
-
-
-
-      
 
       
 
