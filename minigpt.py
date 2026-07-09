@@ -3,6 +3,8 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
+from transformers import GPT2LMHeadModel
+
 
 @dataclass
 class GPTconfig:
@@ -78,7 +80,7 @@ class GPT(nn.Module):
         self.wte = nn.Embedding(config.vocab_size, config.n_embd)
         self.wpe = nn.Embedding(config.block_size, config.n_embd)
         self.ln_f = nn.LayerNorm(config.n_embd)
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
     def forward(self, ids):
         seq_lens = ids.size(-1)
         positions = torch.tensor(range(seq_lens))
@@ -91,11 +93,35 @@ class GPT(nn.Module):
         logits = self.lm_head(x)
         return logits
 
+# name translate function
+def translate(hf_name):
+    name = hf_name
+    name = name.replace("transformer.", "")
+    name = name.replace("h.", "blocks.")
+    name = name.replace("ln_1", "ln1")
+    name = name.replace("ln_2", "ln2")
+    name = name.replace("attn.c_attn", "attention.qkv")
+    name = name.replace("attn.c_proj", "attention.projection")
+    name = name.replace("mlp.c_fc", "mlp.w_up")
+    name = name.replace("mlp.c_proj", "mlp.w_down")
+    return name
+model = GPT(config)
+hf = GPT2LMHeadModel.from_pretrained('gpt2')
+my_sd = model.state_dict()
+with torch.no_grad():
+    for hf_name, hf_tensor in hf.state_dict().items():
+        my_name = translate(hf_name)
+        if my_name not in my_sd:
+            continue
+        if ('c_attn' in hf_name or 'c_proj'in hf_name or 'c_fc' in hf_name) and hf_name.endswith(".weight"):
+            my_sd[my_name].copy_(hf_tensor.t())
+        else:
+            my_sd[my_name].copy_(hf_tensor)
+ids = torch.tensor([15496, 11, 314, 716])
+mine = model(ids)
+theirs = hf(ids.unsqueeze(0)).logits.squeeze(0)
+print(torch.allclose(mine, theirs, atol=1e-4))
 
-
-
-
-    
 
 
 
