@@ -3,7 +3,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from transformers import GPT2LMHeadModel
+from transformers import GPT2LMHeadModel, AutoTokenizer
 
 
 @dataclass
@@ -106,6 +106,8 @@ def translate(hf_name):
     name = name.replace("mlp.c_fc", "mlp.w_up")
     name = name.replace("mlp.c_proj", "mlp.w_down")
     return name
+
+
 model = GPT(config)
 hf = GPT2LMHeadModel.from_pretrained('gpt2')
 my_sd = model.state_dict()
@@ -118,11 +120,35 @@ with torch.no_grad():
             my_sd[my_name].copy_(hf_tensor.t())
         else:
             my_sd[my_name].copy_(hf_tensor)
+
 ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0)
 mine = model(ids)
 theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
+tokenizer = AutoTokenizer.from_pretrained('gpt2')
 
-      
+def generate(model, ids, max_new_tokens):
+    for _ in range(max_new_tokens):
+        logits = model(ids)
+        last_pos = logits[:, -1, :]
+        next_token_id = torch.argmax(last_pos, dim=-1)
+        ntid = next_token_id.unsqueeze(1)
+        ids = torch.cat([ids, ntid], dim=1)
+    return ids
+
+prompt = "The capital of France is"
+inputs = tokenizer(prompt, return_tensors ="pt")
+
+inputs_ids = inputs['input_ids']
+
+output_ids = generate(model,inputs_ids,20)
+
+new_tokens = output_ids[0][inputs_ids.shape[1]:] 
+generated_text = tokenizer.decode(new_tokens)
+full_text =tokenizer.decode(output_ids[0])
+
+print(f"generated text : {generated_text}")
+
+print(f"full text : {full_text}")
 
