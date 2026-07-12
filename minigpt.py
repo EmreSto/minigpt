@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from torch import nn
+from torch import mode, nn
 import torch
 import math
 import torch.nn.functional as F
@@ -127,16 +127,31 @@ theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
 
-def generate(model, ids, max_new_tokens, T, k):
+def generate(model, ids, max_new_tokens,mode, T, k , p ):
+
     for _ in range(max_new_tokens):
         logits = model(ids)
         last_pos = logits[:, -1, :]
-        temp_divide = last_pos / T
-        top_k = torch.topk(temp_divide, k=k, dim=-1)
-        cutoff = top_k.values[:, -1:]
-        filtered = temp_divide.masked_fill(temp_divide < cutoff, float('-inf'))
-        softmax = torch.softmax(filtered, dim= -1)
-        ntid = torch.multinomial(softmax, num_samples = 1)
+        temp_div = last_pos / T
+        if mode == "greedy":
+            ntid = torch.argmax(temp_div, dim=-1).unsqueeze(-1)
+        elif mode == "top-k":
+            top_k = torch.topk(temp_div, k=k, dim=-1)
+            cutoff= top_k.values[:, -1:]
+            filtered = temp_div.masked_fill(temp_div < cutoff, float('-inf'))
+            softmax = torch.softmax(filtered, dim=-1)
+            ntid = torch.multinomial(softmax, num_samples=1)
+        elif mode == "top-p":
+            prob = temp_div.softmax(dim=-1)
+            sorted_prob = torch.sort(prob, descending = True)
+            cumulative_prob = torch.cumsum(sorted_prob.values, dim=-1)
+            sorted_indices_to_remove = cumulative_prob > p
+            rolled = torch.roll(sorted_indices_to_remove, shifts=1, dims=-1)
+            rolled[:,0] = False
+            vocab_mask = torch.zeros_like(sorted_prob.indices, dtype= torch.bool).scatter(1, sorted_prob.indices, rolled)
+            m_fill = temp_div.masked_fill(vocab_mask, float('-inf'))
+            softmax = torch.softmax(m_fill,dim=-1)
+            ntid = torch.multinomial(softmax,num_samples=1)
         ids = torch.cat([ids, ntid], dim=1)
     return ids
 
@@ -148,7 +163,7 @@ inputs = tokenizer(prompt, return_tensors ='pt')
 
 input_ids = inputs['input_ids']
 
-output_ids = generate(model, input_ids, 20, 1, 1)
+output_ids = generate(model, input_ids,20 , mode= "top-p", k= 1, T=1, p =0.9)
 
 new_tokens = output_ids[0][input_ids.shape[1]:]
 generated_text = tokenizer.decode(new_tokens)
