@@ -127,13 +127,30 @@ theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
 
-def generate(model, ids, max_new_tokens):
+def generate(model, ids, max_new_tokens, T):
     for _ in range(max_new_tokens):
         logits = model(ids)
         last_pos = logits[:, -1, :]
-        next_token_id = torch.argmax(last_pos, dim=-1)
-        ntid = next_token_id.unsqueeze(1)
+        temp_divide = last_pos / T
+        softmax = torch.softmax(temp_divide, dim= -1)
+        ntid = torch.multinomial(softmax, num_samples = 1)
         ids = torch.cat([ids, ntid], dim=1)
     return ids
 
+tokenizer = AutoTokenizer.from_pretrained('gpt2')
+
+prompt = "The capital of France is "
+
+inputs = tokenizer(prompt, return_tensors ='pt')
+
+input_ids = inputs['input_ids']
+
+output_ids = generate(model, input_ids, 20, 1)
+
+new_tokens = output_ids[0][input_ids.shape[1]:]
+generated_text = tokenizer.decode(new_tokens)
+full_text = tokenizer.decode(output_ids[0])
+
+print(f"Generated text: {generated_text}")
+print(f"Full text : {full_text}")
 
