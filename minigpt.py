@@ -127,12 +127,15 @@ theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
 
-def generate(model, ids, max_new_tokens, T):
+def generate(model, ids, max_new_tokens, T, k):
     for _ in range(max_new_tokens):
         logits = model(ids)
         last_pos = logits[:, -1, :]
         temp_divide = last_pos / T
-        softmax = torch.softmax(temp_divide, dim= -1)
+        top_k = torch.topk(temp_divide, k=k, dim=-1)
+        cutoff = top_k.values[:, -1:]
+        filtered = temp_divide.masked_fill(temp_divide < cutoff, float('-inf'))
+        softmax = torch.softmax(filtered, dim= -1)
         ntid = torch.multinomial(softmax, num_samples = 1)
         ids = torch.cat([ids, ntid], dim=1)
     return ids
@@ -145,7 +148,7 @@ inputs = tokenizer(prompt, return_tensors ='pt')
 
 input_ids = inputs['input_ids']
 
-output_ids = generate(model, input_ids, 20, 1)
+output_ids = generate(model, input_ids, 20, 1, 1)
 
 new_tokens = output_ids[0][input_ids.shape[1]:]
 generated_text = tokenizer.decode(new_tokens)
