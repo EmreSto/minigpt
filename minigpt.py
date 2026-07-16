@@ -4,6 +4,7 @@ import torch
 import math
 import torch.nn.functional as F
 from transformers import GPT2LMHeadModel, AutoTokenizer
+import time
 
 
 @dataclass
@@ -26,7 +27,7 @@ class Attention(nn.Module):
      self.headdim = config.n_embd // config.n_head
      self.projection = nn.Linear(config.n_embd,config.n_embd)
 
-    def forward(self, x):
+    def forward(self, x, cache = None):
       qkv = self.qkv(x)
       q,k,v = qkv.chunk(3, dim=-1)
       batch = x.size(0)
@@ -37,17 +38,22 @@ class Attention(nn.Module):
       q = q.transpose(2,1)
       k = k.transpose(2,1)
       v = v.transpose(2,1)
+      if cache is not None:
+            cached_k, cached_v = cache
+            k = torch.cat([cached_k, k], dim=2)
+            v = torch.cat([cached_v, v], dim=2)
       score = q @ k.transpose(2,3)
       score = score / math.sqrt(self.headdim)
-      one_vector = torch.ones(seq_len,seq_len)
-      mask_vector = torch.tril(one_vector)
-      score = score.masked_fill(mask_vector == 0, float('-inf'))
+      if cache is None:
+        one_vector = torch.ones(seq_len,seq_len)
+        mask_vector = torch.tril(one_vector)
+        score = score.masked_fill(mask_vector == 0, float('-inf'))
       score = torch.softmax(score,dim=-1)
       output = score @ v
       output = output.transpose(1,2)
       output = output.reshape(batch ,seq_len, self.n_embd)
       output = self.projection(output)
-      return output
+      return output, (k, v)
 
 #MLP   
 class MLP(nn.Module):
@@ -163,12 +169,22 @@ inputs = tokenizer(prompt, return_tensors ='pt')
 
 input_ids = inputs['input_ids']
 
-output_ids = generate(model, input_ids,20 , mode= "top-p", k= 1, T=1, p =0.9)
+time_1 = time.time()
+
+output_ids = generate(model, input_ids,20 , mode= "greedy", k= 40, T=0.7, p =0.9)
+
+time_2 = time.time()
 
 new_tokens = output_ids[0][input_ids.shape[1]:]
 generated_text = tokenizer.decode(new_tokens)
 full_text = tokenizer.decode(output_ids[0])
 
+elapsed_time = time_2-time_1
+
+tokens_second = len(new_tokens)/elapsed_time
+
 print(f"Generated text: {generated_text}")
 print(f"Full text : {full_text}")
+print(f"Elapsed time: {elapsed_time:.4f} seconds")
+print(f"Tokens per second: {tokens_second:.2f} tokens/s")
 
