@@ -75,10 +75,11 @@ class Block(nn.Module):
         self.mlp = MLP(config)
         self.ln1 = nn.LayerNorm(config.n_embd)
         self.ln2 = nn.LayerNorm(config.n_embd)
-    def forward(self,x):
-        x = x + self.attention(self.ln1(x))
+    def forward(self,x, cache = None):
+        attn_out, new_cache = self.attention(self.ln1(x),cache)
+        x = x + attn_out
         x = x + self.mlp(self.ln2(x))
-        return x
+        return x , new_cache
 #Model
 class GPT(nn.Module):
     def __init__(self,config):
