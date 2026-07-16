@@ -89,17 +89,24 @@ class GPT(nn.Module):
         self.wpe = nn.Embedding(config.block_size, config.n_embd)
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-    def forward(self, ids):
+    def forward(self, ids, cache = None):
+        if cache is None:
+            cache= [None] * config.n_layer
+            past_len = 0
+        else:
+            past_len = cache[0][0].size(2)
         seq_lens = ids.size(-1)
-        positions = torch.tensor(range(seq_lens))
+        positions = torch.tensor(range(past_len,past_len + seq_lens))
         tok = self.wte(ids)
         pos = self.wpe(positions)
         x = tok + pos
-        for block in self.blocks:
-            x = block(x)
+        new_cache = []
+        for i in range(len(self.blocks)):
+            x, updated = self.blocks[i](x, cache[i])
+            new_cache.append(updated)
         x =  self.ln_f(x)
         logits = self.lm_head(x)
-        return logits
+        return logits,new_cache
 
 # name translate function
 def translate(hf_name):
