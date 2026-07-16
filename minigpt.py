@@ -136,15 +136,16 @@ with torch.no_grad():
             my_sd[my_name].copy_(hf_tensor)
 
 ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0)
-mine = model(ids)
+mine, _ = model(ids)
 theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
 
 def generate(model, ids, max_new_tokens,mode, T, k , p ):
-
+    cache = None
+    current_input = ids
     for _ in range(max_new_tokens):
-        logits = model(ids)
+        logits, cache = model(current_input, cache)
         last_pos = logits[:, -1, :]
         temp_div = last_pos / T
         if mode == "greedy":
@@ -166,6 +167,7 @@ def generate(model, ids, max_new_tokens,mode, T, k , p ):
             m_fill = temp_div.masked_fill(vocab_mask, float('-inf'))
             softmax = torch.softmax(m_fill,dim=-1)
             ntid = torch.multinomial(softmax,num_samples=1)
+        current_input = ntid
         ids = torch.cat([ids, ntid], dim=1)
     return ids
 
