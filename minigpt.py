@@ -141,11 +141,14 @@ theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 
 
-def generate(model, ids, max_new_tokens,mode, T, k , p ):
+def generate(model, ids, max_new_tokens,mode, T, k , p ,use_cache = True):
     cache = None
     current_input = ids
     for _ in range(max_new_tokens):
-        logits, cache = model(current_input, cache)
+        if use_cache == True:
+            logits, cache = model(current_input, cache)
+        else:
+            logits, _ = model(ids, None)
         last_pos = logits[:, -1, :]
         temp_div = last_pos / T
         if mode == "greedy":
@@ -171,30 +174,26 @@ def generate(model, ids, max_new_tokens,mode, T, k , p ):
         ids = torch.cat([ids, ntid], dim=1)
     return ids
 
-tokenizer = AutoTokenizer.from_pretrained('gpt2')
+def benchmark():
+    model.eval()
+    max_new_tokens = [20, 50, 100, 200]
+    tokenizer = AutoTokenizer.from_pretrained('gpt2')
+    prompt = "The capital of France is "
+    inputs = tokenizer(prompt, return_tensors ='pt')
+    input_ids = inputs['input_ids']
+    with torch.no_grad():
+        for tokens in max_new_tokens:
+            for use_cache in [True, False]:
+                start_time = time.time()
+                for _ in range(5):
+                    output_ids = generate(model, input_ids, max_new_tokens=tokens, mode="greedy", T=1.0, k=50, p=0.9, use_cache=use_cache)
+                end_time = time.time()
+                avg_time = (end_time - start_time) / 5
+                toks_time = avg_time / tokens
+                print(f"Max new tokens: {tokens}, cached = {use_cache}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
 
-prompt = "The capital of France is "
+benchmark()
 
-inputs = tokenizer(prompt, return_tensors ='pt')
 
-input_ids = inputs['input_ids']
 
-time_1 = time.time()
-
-output_ids = generate(model, input_ids,20 , mode= "greedy", k= 40, T=0.7, p =0.9)
-
-time_2 = time.time()
-
-new_tokens = output_ids[0][input_ids.shape[1]:]
-generated_text = tokenizer.decode(new_tokens)
-full_text = tokenizer.decode(output_ids[0])
-
-elapsed_time = time_2-time_1
-
-tokens_second = len(new_tokens)/elapsed_time
-
-print(f"Generated text: {generated_text}")
-print(f"Full text : {full_text}")
-print(f"Elapsed time: {elapsed_time:.4f} seconds")
-print(f"Tokens per second: {tokens_second:.2f} tokens/s")
 
