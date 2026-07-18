@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from torch import mode, nn
+from torch import nn
 import torch
 import math
 import torch.nn.functional as F
@@ -16,6 +16,7 @@ class GPTconfig:
     n_head     : int = 12
 
 config = GPTconfig()
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 #Attention Mechanism
 class Attention(nn.Module):
@@ -45,7 +46,7 @@ class Attention(nn.Module):
       score = q @ k.transpose(2,3)
       score = score / math.sqrt(self.headdim)
       if cache is None:
-        one_vector = torch.ones(seq_len,seq_len)
+        one_vector = torch.ones(seq_len,seq_len, device=x.device)
         mask_vector = torch.tril(one_vector)
         score = score.masked_fill(mask_vector == 0, float('-inf'))
       score = torch.softmax(score,dim=-1)
@@ -96,7 +97,7 @@ class GPT(nn.Module):
         else:
             past_len = cache[0][0].size(2)
         seq_lens = ids.size(-1)
-        positions = torch.tensor(range(past_len,past_len + seq_lens))
+        positions = torch.tensor(range(past_len,past_len + seq_lens), device=ids.device)
         tok = self.wte(ids)
         pos = self.wpe(positions)
         x = tok + pos
@@ -135,7 +136,8 @@ with torch.no_grad():
         else:
             my_sd[my_name].copy_(hf_tensor)
 
-ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0)
+model = model.to(device)
+ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
 mine, _ = model(ids)
 theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
@@ -174,13 +176,13 @@ def generate(model, ids, max_new_tokens,mode, T, k , p ,use_cache = True):
         ids = torch.cat([ids, ntid], dim=1)
     return ids
 
-def benchmark():
+def benchmark_KV_Cache():
     model.eval()
     max_new_tokens = [20, 50, 100, 200]
     tokenizer = AutoTokenizer.from_pretrained('gpt2')
     prompt = "The capital of France is "
     inputs = tokenizer(prompt, return_tensors ='pt')
-    input_ids = inputs['input_ids']
+    input_ids = inputs['input_ids'].to(device)
     with torch.no_grad():
         for tokens in max_new_tokens:
             for use_cache in [True, False]:
@@ -192,7 +194,7 @@ def benchmark():
                 toks_time = avg_time / tokens
                 print(f"Max new tokens: {tokens}, cached = {use_cache}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
 
-benchmark()
+benchmark_KV_Cache()
 
 
 
