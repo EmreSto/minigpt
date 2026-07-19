@@ -16,6 +16,7 @@ class GPTconfig:
     n_head     : int = 12
 
 config = GPTconfig()
+config_medium = GPTconfig(n_embd=1024, n_head=16, n_layer=24)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 #Attention Mechanism
@@ -90,9 +91,10 @@ class GPT(nn.Module):
         self.wpe = nn.Embedding(config.block_size, config.n_embd)
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.n_layer = config.n_layer
     def forward(self, ids, cache = None):
         if cache is None:
-            cache= [None] * config.n_layer
+            cache= [None] * self.n_layer
             past_len = 0
         else:
             past_len = cache[0][0].size(2)
@@ -123,24 +125,33 @@ def translate(hf_name):
     return name
 
 
+def load_hf_weights(model, hf_model):
+    hf = GPT2LMHeadModel.from_pretrained(hf_model)
+    my_sd = model.state_dict()
+    with torch.no_grad():
+        for hf_name, hf_tensor in hf.state_dict().items():
+            my_name = translate(hf_name)
+            if my_name not in my_sd:
+                continue
+            if('c_attn' in hf_name or 'c_proj' in hf_name or 'c_fc' in hf_name) and hf_name.endswith(".weight"):
+                my_sd[my_name].copy_(hf_tensor.t())
+            else:
+                my_sd[my_name].copy_(hf_tensor)
+    return hf
 model = GPT(config)
-hf = GPT2LMHeadModel.from_pretrained('gpt2')
-my_sd = model.state_dict()
-with torch.no_grad():
-    for hf_name, hf_tensor in hf.state_dict().items():
-        my_name = translate(hf_name)
-        if my_name not in my_sd:
-            continue
-        if ('c_attn' in hf_name or 'c_proj'in hf_name or 'c_fc' in hf_name) and hf_name.endswith(".weight"):
-            my_sd[my_name].copy_(hf_tensor.t())
-        else:
-            my_sd[my_name].copy_(hf_tensor)
-
+hf = load_hf_weights(model, 'gpt2')
 model = model.to(device)
 ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
 mine, _ = model(ids)
 theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
+medium_model = GPT(config_medium)
+hf_medium = load_hf_weights(medium_model, 'gpt2-medium')
+ids_medium = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
+mine_med, _ = medium_model(ids)
+theirs_med = hf_medium(ids_medium).logits
+print(torch.allclose(mine_med, theirs_med, atol=1e-4))
+
 
 
 def generate(model, ids, max_new_tokens,mode, T, k , p ,use_cache = True):
