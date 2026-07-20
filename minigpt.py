@@ -205,7 +205,10 @@ def benchmark_KV_Cache():
                 toks_time = avg_time / tokens
                 print(f"Max new tokens: {tokens}, cached = {use_cache}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
 
-benchmark_KV_Cache()
+#benchmark_KV_Cache()
+
+def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
+    
 
 
 
