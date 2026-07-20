@@ -229,5 +229,12 @@ def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
 
 
 
+tokenizer = AutoTokenizer.from_pretrained('gpt2')
+prompt_ids = tokenizer("The capital of France is", return_tensors='pt')['input_ids'].to(device)
 
+spec_out = spec_generate(model, medium_model, prompt_ids, 30, k=4)
+plain_out = generate(medium_model, prompt_ids, 30, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
+
+print("SPEC :", tokenizer.decode(spec_out[0]))
+print("PLAIN:", tokenizer.decode(plain_out[0]))
 
