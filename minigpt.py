@@ -208,7 +208,25 @@ def benchmark_KV_Cache():
 #benchmark_KV_Cache()
 
 def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
-    
+    generated = 0
+    while generated < max_new_tokens:
+        draft_ids = generate(draft_model, ids, max_new_tokens=k, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
+        new_drafts = draft_ids[:, -k:] 
+        ids_with_drafts = torch.cat([ids, new_drafts], dim=1)
+        target_logits, _ = target_model(ids_with_drafts, None)
+        prompt_len = ids.size(1)
+        target_verdicts = target_logits[:, prompt_len-1:, :].argmax(dim=-1)
+        accepted = 0
+        for i in range(k):
+            if new_drafts[0, i] == target_verdicts[0, i]:
+                ids = torch.cat([ids, new_drafts[:, i:i+1]], dim=1)
+                accepted += 1
+            else:
+                break
+        ids = torch.cat([ids, target_verdicts[:, accepted:accepted+1]], dim=1)
+        generated += accepted +1
+    return ids
+
 
 
 
