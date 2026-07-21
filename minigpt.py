@@ -208,10 +208,13 @@ def benchmark_KV_Cache():
 #benchmark_KV_Cache()
 
 def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
+    accepted_total = 0
+    proposed_total = 0
     generated = 0
     while generated < max_new_tokens:
         draft_ids = generate(draft_model, ids, max_new_tokens=k, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
-        new_drafts = draft_ids[:, -k:] 
+        new_drafts = draft_ids[:, -k:]
+        proposed_total += k
         ids_with_drafts = torch.cat([ids, new_drafts], dim=1)
         target_logits, _ = target_model(ids_with_drafts, None)
         prompt_len = ids.size(1)
@@ -221,20 +224,40 @@ def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
             if new_drafts[0, i] == target_verdicts[0, i]:
                 ids = torch.cat([ids, new_drafts[:, i:i+1]], dim=1)
                 accepted += 1
+                accepted_total += 1
             else:
                 break
         ids = torch.cat([ids, target_verdicts[:, accepted:accepted+1]], dim=1)
         generated += accepted +1
-    return ids
+    return ids ,proposed_total , accepted_total
 
 
 
-tokenizer = AutoTokenizer.from_pretrained('gpt2')
-prompt_ids = tokenizer("The capital of France is", return_tensors='pt')['input_ids'].to(device)
+def benchmark_spec():
+    model.eval()
+    medium_model.eval()
+    max_new_tokens = 30
+    tokenizer = AutoTokenizer.from_pretrained('gpt2')
+    prompt = "The capital of France is "
+    inputs = tokenizer(prompt, return_tensors ='pt')
+    input_ids = inputs['input_ids'].to(device)
+    with torch.no_grad():
+            start_time = time.time()
+            for _ in range(5):
+                spec_output_ids, proposed, accepted = spec_generate(model, medium_model, input_ids, 30 , k=4)
+            end_time = time.time()
+            avg_time = (end_time - start_time) / 5
+            spec_actual = spec_output_ids.size(1) - input_ids.size(1)
+            toks_time = avg_time / spec_actual
+            print(f"SPEC :Max new tokens: {spec_actual}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
+            start_time = time.time()
+            for _ in range(5):
+                plain_output_ids = generate(medium_model, input_ids, 30, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
+            end_time = time.time()
+            avg_time = (end_time - start_time) / 5
+            toks_time = avg_time / max_new_tokens
+            print(f"PLAIN :Max new tokens: {max_new_tokens}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
 
-spec_out = spec_generate(model, medium_model, prompt_ids, 30, k=4)
-plain_out = generate(medium_model, prompt_ids, 30, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
+benchmark_spec()
 
-print("SPEC :", tokenizer.decode(spec_out[0]))
-print("PLAIN:", tokenizer.decode(plain_out[0]))
-
+    
