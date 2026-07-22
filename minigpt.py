@@ -147,6 +147,7 @@ theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 medium_model = GPT(config_medium)
 hf_medium = load_hf_weights(medium_model, 'gpt2-medium')
+hf_medium = hf_medium.to(device)
 ids_medium = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
 mine_med, _ = medium_model(ids)
 theirs_med = hf_medium(ids_medium).logits
@@ -200,6 +201,8 @@ def benchmark_KV_Cache():
                 start_time = time.time()
                 for _ in range(5):
                     output_ids = generate(model, input_ids, max_new_tokens=tokens, mode="greedy", T=1.0, k=50, p=0.9, use_cache=use_cache)
+                if device == 'cuda':
+                    torch.cuda.synchronize()
                 end_time = time.time()
                 avg_time = (end_time - start_time) / 5
                 toks_time = avg_time / tokens
@@ -248,6 +251,8 @@ def benchmark_spec():
                 start_time = time.time()
                 for _ in range(5):
                     spec_output_ids, proposed, accepted = spec_generate(model, medium_model, input_ids, 30 , k=k_val)
+                if device == 'cuda':
+                    torch.cuda.synchronize()
                 end_time = time.time()
                 avg_time = (end_time - start_time) / 5
                 spec_actual = spec_output_ids.size(1) - input_ids.size(1)
@@ -257,6 +262,8 @@ def benchmark_spec():
             start_time = time.time()
             for _ in range(5):
                 plain_output_ids = generate(medium_model, input_ids, 30, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
+            if device == 'cuda':
+                torch.cuda.synchronize()
             end_time = time.time()
             avg_time = (end_time - start_time) / 5
             toks_time = avg_time / max_new_tokens
