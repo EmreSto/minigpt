@@ -33,11 +33,3 @@ Identical on CPU and GPU, since the math is hardware-independent. Also highly pr
 | plain greedy | 0.073 | 0.012 |
 
 On CPU spec loses everywhere, since there is no parallel-verify discount. On GPU the gap collapses to about 8%. The remaining loss is attributable to two unimplemented optimizations: a target-side KV cache (verify currently re-encodes the full sequence every round) and a persistent drafter cache.
-
-## Next
-
-- Target-side KV cache with truncate-on-reject
-- Persistent drafter cache across rounds
-- Multi-prompt acceptance study
-
-Full writeup: coming soon.
