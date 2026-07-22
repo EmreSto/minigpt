@@ -139,18 +139,18 @@ def load_hf_weights(model, hf_model):
                 my_sd[my_name].copy_(hf_tensor)
     return hf
 model = GPT(config)
-hf = load_hf_weights(model, 'gpt2')
+hf = load_hf_weights(model, 'gpt2').to(device)
 model = model.to(device)
 ids = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
 mine, _ = model(ids)
 theirs = hf(ids).logits
 print(torch.allclose(mine, theirs, atol=1e-4))
 medium_model = GPT(config_medium)
-hf_medium = load_hf_weights(medium_model, 'gpt2-medium')
+medium_model = medium_model.to(device)
+hf_medium = load_hf_weights(medium_model, 'gpt2-medium').to(device)
 hf_medium = hf_medium.to(device)
-ids_medium = torch.tensor([15496, 11, 314, 716]).unsqueeze(0).to(device)
 mine_med, _ = medium_model(ids)
-theirs_med = hf_medium(ids_medium).logits
+theirs_med = hf_medium(ids).logits
 print(torch.allclose(mine_med, theirs_med, atol=1e-4))
 
 
