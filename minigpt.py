@@ -234,22 +234,26 @@ def spec_generate(draft_model, target_model, ids,max_new_tokens, k):
 
 
 def benchmark_spec():
+    print("HARNESS v3", __file__)
     model.eval()
     medium_model.eval()
     max_new_tokens = 30
+    k_values = [2, 4 ,8]
     tokenizer = AutoTokenizer.from_pretrained('gpt2')
-    prompt = "The capital of France is "
+    prompt = "The capital of France is"
     inputs = tokenizer(prompt, return_tensors ='pt')
     input_ids = inputs['input_ids'].to(device)
     with torch.no_grad():
-            start_time = time.time()
-            for _ in range(5):
-                spec_output_ids, proposed, accepted = spec_generate(model, medium_model, input_ids, 30 , k=4)
-            end_time = time.time()
-            avg_time = (end_time - start_time) / 5
-            spec_actual = spec_output_ids.size(1) - input_ids.size(1)
-            toks_time = avg_time / spec_actual
-            print(f"SPEC :Max new tokens: {spec_actual}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
+            for k_val in k_values:
+                start_time = time.time()
+                for _ in range(5):
+                    spec_output_ids, proposed, accepted = spec_generate(model, medium_model, input_ids, 30 , k=k_val)
+                end_time = time.time()
+                avg_time = (end_time - start_time) / 5
+                spec_actual = spec_output_ids.size(1) - input_ids.size(1)
+                toks_time = avg_time / spec_actual
+                print(f"RAW k={k_val}: start={start_time:.3f} end={end_time:.3f}")
+                print(f"SPEC :Max new tokens: {spec_actual}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds, k = {k_val}, Proposed: {proposed}, Accepted: {accepted}, Acceptance Rate: {accepted/proposed:.3f}")
             start_time = time.time()
             for _ in range(5):
                 plain_output_ids = generate(medium_model, input_ids, 30, mode="greedy", T=1.0, k=50, p=0.9, use_cache=True)
@@ -257,6 +261,7 @@ def benchmark_spec():
             avg_time = (end_time - start_time) / 5
             toks_time = avg_time / max_new_tokens
             print(f"PLAIN :Max new tokens: {max_new_tokens}, Average time: {avg_time:.3f} seconds, Time per token: {toks_time:.3f} seconds")
+            
 
 benchmark_spec()
 
